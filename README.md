@@ -36,6 +36,4 @@ Este projeto é uma calculadora para encontrar a sequência de operações aritm
 
 ## Como Executar
 
-1. Clone o repositório:
-   ```bash
-   git clone <URL_DO_REPOSITORIO>
+1. Execute o arquivo Beltmatic_app.exe
