@@ -4,6 +4,7 @@ import tkinter as tk
 import customtkinter as ctk
 import json
 import os
+import sqlite3
 
 class QueueItem:
     def __init__(self, value, steps, operator, steps_list):
@@ -85,39 +86,53 @@ def run_calculation():
             result_text.insert(tk.END, f"{step[1]} = ", 'number')
             result_text.insert(tk.END, f"{step[3]}\n", 'result')
 
-        save_to_history(target, max_src, steps)
+        save_to_history_db(target, max_src, steps)
         update_history_listbox()
     except ValueError as e:
         result_text.delete(1.0, tk.END)
         result_text.insert(tk.END, f"Error: Valores devem ser positivos e inteiros.\n")
 
-def save_to_history(target, max_src, steps):
-    history_item = {
-        "target": target,
-        "max_src": max_src,
-        "steps": steps
-    }
+def init_db():
+    conn = sqlite3.connect('calculations.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS history (
+                        id INTEGER PRIMARY KEY,
+                        target INTEGER NOT NULL,
+                        max_src INTEGER NOT NULL,
+                        steps TEXT NOT NULL
+                    )''')
+    conn.commit()
+    conn.close()
 
-    history = load_history()
+def save_to_history_db(target, max_src, steps):
+    steps_str = json.dumps(steps)
+    conn = sqlite3.connect('calculations.db')
+    cursor = conn.cursor()
 
-    # Verificar se já existe um cálculo com o mesmo target e max_src
-    for item in history:
-        if item['target'] == target and item['max_src'] == max_src:
-            return
+    cursor.execute("SELECT * FROM history WHERE target = ? AND max_src = ?", (target, max_src))
+    existing_record = cursor.fetchone()
+    if existing_record is not None:
+        return
 
-    history.append(history_item)
+    cursor.execute("INSERT INTO history (target, max_src, steps) VALUES (?, ?, ?)", (target, max_src, steps_str))
+    conn.commit()
+    conn.close()
 
-    with open("Beltmatic\history.json", "w") as file:
-        json.dump(history, file)
-
-def load_history():
-    if os.path.exists("Beltmatic\history.json"):
-        with open("Beltmatic\history.json", "r") as file:
-            return json.load(file)
-    return []
+def load_history_db():
+    conn = sqlite3.connect('calculations.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT target, max_src, steps FROM history")
+    rows = cursor.fetchall()
+    history = []
+    for row in rows:
+        target, max_src, steps_str = row
+        steps = json.loads(steps_str)
+        history.append({"target": target, "max_src": max_src, "steps": steps})
+    conn.close()
+    return history
 
 def update_history_listbox():
-    history = load_history()
+    history = load_history_db()
     history_listbox.delete(0, tk.END)
     for idx, item in enumerate(history):
         history_listbox.insert(tk.END, f"{idx + 1}: {item['target']} (Extrator: {item['max_src']})")
@@ -126,7 +141,7 @@ def show_history_details(event):
     selected_index = history_listbox.curselection()
     if selected_index:
         index = selected_index[0]
-        history = load_history()
+        history = load_history_db()
         steps = history[index]["steps"]
         result_text.delete(1.0, tk.END)
         for step in steps:
@@ -191,7 +206,8 @@ history_listbox = tk.Listbox(frame_history, height=10, width=30, bg='#2B2B2B', f
 history_listbox.pack(pady=5)
 history_listbox.bind('<<ListboxSelect>>', show_history_details)
 
-# Carregar histórico ao iniciar o programa
+# Inicializar o banco de dados e carregar histórico ao iniciar o programa
+init_db()
 update_history_listbox()
 
 # Iniciar o loop principal da interface
