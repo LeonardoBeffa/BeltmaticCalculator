@@ -121,13 +121,13 @@ def save_to_history_db(target, max_src, steps):
 def load_history_db():
     conn = sqlite3.connect('calculations.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT target, max_src, steps FROM history")
+    cursor.execute("SELECT id, target, max_src, steps FROM history")
     rows = cursor.fetchall()
     history = []
     for row in rows:
-        target, max_src, steps_str = row
+        id, target, max_src, steps_str = row
         steps = json.loads(steps_str)
-        history.append({"target": target, "max_src": max_src, "steps": steps})
+        history.append({"id": id, "target": target, "max_src": max_src, "steps": steps})
     conn.close()
     return history
 
@@ -149,6 +149,25 @@ def show_history_details(event):
             result_text.insert(tk.END, f"{step[2]} ", 'operator')
             result_text.insert(tk.END, f"{step[1]} = ", 'number')
             result_text.insert(tk.END, f"{step[3]}\n", 'result')
+        delete_button.configure(state="normal")
+
+def delete_history_item():
+    selected_index = history_listbox.curselection()
+    if selected_index:
+        index = selected_index[0]
+        history = load_history_db()
+        item_id = history[index]["id"]
+        
+        confirm = tk.messagebox.askyesno("Confirmação", "Você realmente deseja excluir este item?")
+        if confirm:
+            conn = sqlite3.connect('calculations.db')
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM history WHERE id = ?", (item_id,))
+            conn.commit()
+            conn.close()
+            update_history_listbox()
+            result_text.delete(1.0, tk.END)
+            delete_button.configure(state="disabled")
 
 # Configurar o tema do customtkinter
 ctk.set_appearance_mode("dark")
@@ -205,6 +224,9 @@ history_label.pack(pady=1)
 history_listbox = tk.Listbox(frame_history, height=10, width=30, bg='#2B2B2B', foreground='white')
 history_listbox.pack(pady=5)
 history_listbox.bind('<<ListboxSelect>>', show_history_details)
+
+delete_button = ctk.CTkButton(frame_history, text="Deletar", command=delete_history_item, state="disabled")
+delete_button.pack(pady=5)
 
 # Inicializar o banco de dados e carregar histórico ao iniciar o programa
 init_db()
